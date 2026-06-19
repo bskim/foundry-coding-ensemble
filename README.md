@@ -1,5 +1,7 @@
 # foundry-coding-ensemble
 
+Read this in Korean: [README_KO.md](README_KO.md)
+
 A small proof of concept that turns several Foundry-served coding models into a
 selection-based ensemble for SWE-bench, and measures whether that ensemble beats
 the best single model on resolved rate and cost.
@@ -41,6 +43,12 @@ harness/
   agent_eval.py      Agent loop inside the SWE-bench Docker image; git diff -> patch.
   fusion_select.py   Plan A: judge selects the best candidate patch (Select-on-N).
   fusion_synth.py    Plan B: synthesize one diff over candidates, apply-gated.
+  fusion_select_exec.py  General-purpose Plan A: select by execution signals
+                         (applies, compiles, suite imports, self-tests), judge
+                         only on ties. No gold tests required.
+  fusion_route.py    Cost-aware routing on top of fusion_select_exec: consult
+                     candidates cheapest-first, accept the first clean one,
+                     escalate only when needed.
   oracle_report.py   Best-of-N ceiling and selector efficiency.
   cost_report.py     Resolved-rate + $/resolved ranking from reports + pricing.
   verified_prep.py   Build a Verified subset with oracle context.
@@ -97,6 +105,26 @@ $env:LITELLM_KEY = "<your gateway key>"
        --synth-model deepseek-v4-pro --out preds_fusion-synth.jsonl
    ```
 
+   General-purpose selection by execution signals (no gold tests; needs WSL +
+   Docker, same as agent_eval):
+
+   ```
+   python harness/fusion_select_exec.py --dataset verified_subset.jsonl \
+       --candidate minimax-m2.5=preds_agent_minimax.jsonl \
+       --candidate deepseek-v4-pro=preds_agent_deepseek.jsonl \
+       --judge-model deepseek-v4-pro --out preds_fusion-select-exec.jsonl
+   ```
+
+   Cost-aware routing (cheapest first, escalate on demand):
+
+   ```
+   python harness/fusion_route.py --dataset verified_subset.jsonl \
+       --candidate minimax-m2.5=preds_agent_minimax.jsonl \
+       --candidate deepseek-v4-pro=preds_agent_deepseek.jsonl \
+       --order minimax-m2.5,deepseek-v4-pro \
+       --judge-model deepseek-v4-pro --out preds_fusion-route.jsonl
+   ```
+
 4. Score with the official Docker harness (inside WSL):
 
    ```
@@ -120,3 +148,21 @@ $env:LITELLM_KEY = "<your gateway key>"
 - Prediction files (`preds_*.jsonl`), harness reports (`report_*.json`), and logs
   are run artifacts and are not committed; regenerate them with the steps above.
 - gpt-5.4 is the single-model baseline and is not an ensemble member.
+
+## General-purpose direction (next)
+
+SWE-bench grades with hidden gold tests; real coding has none. The selector here
+never reads those tests (it picks among candidate diffs from the issue text
+alone), so the mechanism is general, but the reported numbers (especially the
+post-hoc 2-model panel) are partly fit to the benchmark. To use this as a general
+coding selector, the plan is to replace the gold-test oracle with runtime
+verification signals (build, regression vs existing tests, self-authored tests,
+type/lint) and validate with a held-out, train/test-split methodology. In real
+use grading is not run every task; qualitative human review stands in, and
+SWE-bench is kept only as a method-validation harness. Plan C (cost routing) is
+built on Plan A (execution-grounded selection), so Plan A is measured first, then
+Plan A + C, to confirm cost drops while coverage holds. Plan A and Plan C are now
+implemented as `harness/fusion_select_exec.py` and `harness/fusion_route.py`
+(see the run steps above). See section 6 of
+[reports/fusion-ensemble-report.md](reports/fusion-ensemble-report.md) for the
+full plan.
