@@ -2,22 +2,22 @@
 
 영어 원문은 여기에서 볼 수 있습니다: [README.md](README.md)
 
-Foundry에서 서빙하는 여러 코딩 모델을 선택 기반(selection) 앵상블로 묶어 SWE-bench에서
-평가하고, 이 앵상블이 가장 좋은 단일 모델보다 해결률과 비용 면에서 더 나은지 확인하는
+Foundry에서 서빙하는 여러 코딩 모델을 선택 기반(selection) 앙상블로 묶어 SWE-bench에서
+평가하고, 이 앙상블이 가장 좋은 단일 모델보다 해결률과 비용 면에서 더 나은지 확인하는
 작은 개념 증명(proof of concept)입니다.
 
 OpenRouter의 Fusion(여러 모델을 하나의 deep-research 답변으로 합성)에서 영감을 받되,
-에이전트 코딩에 맞게 바꿈습니다. 매 턴 답을 합성(synthesis)하는 대신, 각 모델이 독립적으로
+에이전트 코딩에 맞게 바꿨습니다. 매 턴 답을 합성(synthesis)하는 대신, 각 모델이 독립적으로
 전체 에이전트 루프를 돌려 후보 패치를 하나씩 만들고, 마지막에 심판(judge) 모델이 그중
-가장 좋은 패치 하나를 고릅니다(Select-on-N). 테스트 서븋셋에서 이 단순한 방식이
-best-of-N 상한(ceiling)에 도달했고, 단일 모델 SOTA 베이스라인보다 높은 문제해결 커버리지를 난
+가장 좋은 패치 하나를 고릅니다(Select-on-N). 테스트 서브셋에서 이 단순한 방식이
+best-of-N 상한(ceiling)에 도달했고, 단일 모델 SOTA 베이스라인보다 높은 문제해결 커버리지를 낸
 유일한 구성이었습니다.
 비용 트레이드오프와 더 저렴하고 강하게 만드는 방법까지 담은 전체 결과는
 [reports/fusion-ensemble-report_ko.md](reports/fusion-ensemble-report_ko.md)를 참고하세요.
 
 이 프로젝트의 단일 모델 짝(companion)은 foundry-model-benchmark 리포지토리이며, 각 모델을
 단독으로 돌린 SWE-bench Verified 및 커스텀 코딩 평가 점수를 정리합니다. 이 리포지토리는
-그 단일 모델 후보들을 앵상블로 묶는 하니스(harness)를 더합니다.
+그 단일 모델 후보들을 앙상블로 묶는 하니스(harness)를 더합니다.
 
 ## 결과 요약 (5개 인스턴스 Verified 서브셋, 에이전트 루프)
 
@@ -41,7 +41,7 @@ harness/
   agent_eval.py      SWE-bench Docker 이미지 안의 에이전트 루프; git diff -> 패치.
   fusion_select.py   Plan A: 심판이 최고 후보 패치를 선택 (Select-on-N).
   fusion_synth.py    Plan B: 후보들에 대해 하나의 diff로 합성, apply-gate 적용.
-  fusion_select_exec.py  범용 Plan A: 실행 신호(적용, 컴파일, 스위트 임포트,
+  fusion_select_exec.py  범용 Plan 1: 실행 신호(적용, 컴파일, 스위트 임포트,
                          자작 테스트)로 선택, 동점일 때만 심판 사용. gold
                          테스트 불필요.
   fusion_route.py    fusion_select_exec 위의 비용 인지 라우팅: 후보를 저렴한
@@ -59,7 +59,7 @@ reports/
 
 ## 실행 방법
 
-하니스는 각 모델을 슬러그(slug)로 노출하는 OpenAI 호환 게이트웨이(예: 포트 4000에서 돌는 로컬
+하니스는 각 모델을 슬러그(slug)로 노출하는 OpenAI 호환 게이트웨이(예: 포트 4000에서 도는 로컬
 LiteLLM 프록시)와 통신합니다. 게이트웨이 키는 환경 변수에 설정하세요:
 
 ```
@@ -152,9 +152,9 @@ SWE-bench는 숨은 gold 테스트로 채점하지만 실무 코딩에는 그게
 보고된 수치(특히 사후로 고른 2-모델 패널)는 벤치마크에 일부 맞춰져 있습니다. 범용 코딩
 선택기로 쓰려면 gold 테스트 oracle을 런타임 검증 신호(빌드, 기존 테스트 회귀, 자작
 테스트, 타입/린트)로 대체하고 held-out + train/test 분리 방법론으로 검증하는 것이
-계획입니다. 실무에서는 매 과제를 채점하지 않고 정성적 사람 리뷰가 갈음하며, SWE-bench는
-방법 검증용 하니스로만 둡니다. Plan C(비용 라우팅)는 Plan A(실행 기반 선택) 위에
-얹히므로, Plan A를 먼저 측정하고 이어 Plan A + C를 측정해 커버리지는 유지하면서 비용이
-줄어드는지 확인합니다. Plan A와 Plan C는 이제 `harness/fusion_select_exec.py`와
+계획입니다. 실무에서는 매 과제를 채점하지 않고 사람의 정성 리뷰가 대신하며, SWE-bench는
+방법 검증용 하니스로만 둡니다. Plan 3(비용 라우팅)은 Plan 1(실행 기반 선택) 위에
+얙히므로, Plan 1을 먼저 측정하고 이어 Plan 1 + 3을 측정해 커버리지는 유지하면서 비용이
+줄어드는지 확인합니다. Plan 1과 Plan 3은 이제 `harness/fusion_select_exec.py`와
 `harness/fusion_route.py`로 구현되어 있습니다(위 실행 단계 참고). 전체 계획은
 [reports/fusion-ensemble-report_ko.md](reports/fusion-ensemble-report_ko.md)의 6절을 참고하세요.

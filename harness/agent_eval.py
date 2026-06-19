@@ -77,10 +77,17 @@ def ensure_docker():
 
 
 def exec_in(cid, script, timeout=180):
-    """Pipe an arbitrary bash script into the container via stdin (no quote hell)."""
-    b64 = base64.b64encode(script.encode("utf-8")).decode("ascii")
-    inner = f"echo {b64} | base64 -d | docker exec -i {cid} bash -l 2>&1"
-    return _wsl(inner, timeout=timeout)
+    """Pipe an arbitrary bash script into the container via stdin (no quote hell).
+
+    The base64 blob travels through the wsl.exe process stdin, never on the argv:
+    a large candidate patch (already base64 inside the script) would otherwise be
+    base64-encoded again onto the command line and overflow the Windows ~32KB argv
+    limit (WinError 206). `base64 -d` reconstructs the script and pipes it into the
+    container's bash.
+    """
+    b64 = base64.b64encode(script.encode("utf-8"))
+    inner = f"base64 -d | docker exec -i {cid} bash -l 2>&1"
+    return _wsl_stdin(inner, b64, timeout=timeout)
 
 
 def start_container(instance_id):

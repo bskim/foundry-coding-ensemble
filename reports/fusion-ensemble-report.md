@@ -1,5 +1,7 @@
 # Selection-based ensemble vs solo on SWE-bench Verified
 
+Read this in Korean: [fusion-ensemble-report_ko.md](fusion-ensemble-report_ko.md)
+
 This is a proof of concept. It was inspired by OpenRouter's Fusion (which fuses
 several models for deep-research answers), but adapted to agentic coding by
 replacing answer synthesis with the simpler idea of selection over N candidates
@@ -221,6 +223,114 @@ The takeaway: even a simplified, selection-only ensemble already beats the
 single-model SOTA on this subset, and the cost can be brought down substantially
 by pruning and routing. With more scale and a test-grounded selector, there is
 meaningful headroom on both axes.
+
+## 6. Toward a general-purpose coding selector
+
+SWE-bench has two things real coding work does not: a fixed problem set and hidden
+gold tests that grade each patch. That raises a fair question: is this a general
+approach, or is it only tuned to a benchmark whose answers are known?
+
+What was and was not fit to the benchmark:
+
+- The selector never saw the gold tests. fusion-select picks among candidate diffs
+  from the issue text alone, the same information a real coding agent has. Grading
+  by gold tests happens offline, after selection. So the selection mechanism
+  itself is general.
+- One result is fit to the benchmark and should be read with care: the
+  cost-minimal 2-model panel in 4.5 was chosen after seeing per-instance results.
+  That is a post-hoc, oracle-fit configuration and is not evidence of general
+  performance.
+
+How evaluation works outside SWE-bench. In real use you do not grade every task
+with gold tests; qualitative human review stands in for grading. SWE-bench is used
+here only as a method-validation harness: because it grades objectively, it can
+answer the one question we need, which is whether an implementation built this way
+scores higher than a single model. If execution-grounded selection raises the
+SWE-bench score, the mechanism is doing real work, not memorizing answers.
+
+### Plan 1: execution-grounded selection (runtime, no gold tests)
+
+Replace the LLM-only judge with verifiable signals the agent actually has at
+runtime, scored and combined:
+
+1. Build / compile passes (the cheapest hard filter; a candidate that does not
+   build is dropped).
+2. Regression check against the repo's existing test suite (a candidate that
+   breaks currently-passing tests is penalized).
+3. Self-authored tests: each panel agent writes the fix plus a test for it, and
+   those tests are cross-applied to the other candidates as a runtime oracle.
+4. Type check and lint (mypy / tsc / ruff and equivalents).
+5. Candidate agreement (independent agents converging on a similar diff add
+   confidence).
+6. LLM judge as the tiebreaker only when the execution signals are tied.
+
+selection score = f(build, regression, self-test pass rate, type/lint, agreement,
+judge). This turns selection from a guess into a verifiable decision, which is
+what lets it work outside SWE-bench.
+
+### Plan 2: a general evaluation methodology
+
+- Held-out test split: split a repo's tests into a set visible to the agent and
+  selector and a hidden set used only for grading. This mirrors real development
+  and keeps the selector away from the answer.
+- Scale and diversity: 50 to 500 instances, more than one language and task type
+  (not only Python bug-fixes), to check the panel and selector are robust to the
+  task distribution.
+- Train/test panel split: decide which models go in the panel on a train split,
+  and report numbers only on a test split. This removes the post-hoc fit behind
+  the 2-model panel.
+- Test-less tasks (docs, UI, refactors): calibrate an LLM rubric judge against
+  human ratings, or collect proxy signals (CI pass rate, review acceptance,
+  post-merge revert rate) as longer-term evidence.
+
+### Plan 3: cost-aware routing (built on Plan 1)
+
+Running N agents on every task is impractical in real use.
+
+- Difficulty routing: try the cheapest solo first; finish if its build and tests
+  pass.
+- Escalate on disagreement: call the panel only when the first attempt fails or
+  candidates disagree.
+- Early stop: if one candidate passes all available tests (Plan 1 signals), skip
+  evaluating the rest.
+
+### Measurement protocol
+
+Because Plan 3 is built on Plan 1, the two are measured in order:
+
+1. Measure Plan 1 on SWE-bench: does execution-grounded selection hold the
+   coverage the LLM-judge version reached?
+2. Measure Plan 1 + 3: does routing keep the same coverage while cutting
+   $/resolved?
+
+| step | change | success criterion |
+|------|--------|-------------------|
+| 1 | selector: LLM-only to execution-grounded | selection without gold tests holds the oracle selection efficiency |
+| 2 | held-out test split, scale to 50-500 | selection efficiency does not collapse from the small-subset 100% |
+| 3 | panel chosen on a train/test split | coverage advantage over the best single model holds without post-hoc fit |
+| 4 | multi-language, multi-task types | coverage gain reproduces off-distribution |
+| 5 | add difficulty routing (Plan 1 + 3) | same coverage at substantially lower $/resolved |
+
+Measured run on this subset (4-model panel: minimax-m2.5, deepseek-v4-pro,
+kimi-k2, glm-5.1; gold-test scoring, judge only on ties):
+
+| config | resolved | $/resolved | tokens |
+|--------|----------|------------|--------|
+| Plan 1 (execution-grounded selection) | 4/5 (80%) | 1.79 | 5.53M |
+| Plan 1 + 3 (cost-aware routing) | 4/5 (80%) | 0.29 | 1.66M |
+
+Routing held the same 80% coverage (the same four instances resolved, seaborn-3187
+missed by both) while cutting tokens by about 70% and $/resolved by about 84%: it
+consulted the cheapest candidate first and stopped as soon as that candidate's
+verifiable signals were clean, escalating to a second candidate on only one
+instance. Execution-grounded Plan 1 reproduced the LLM-judge selector's 4/5 from
+section 4, so swapping the gold-test-free signals in did not cost coverage here.
+On five instances this is a small signal, not a benchmark-grade result.
+
+This is still a proof of concept. The claim is narrow: the selection mechanism is
+general because it never reads the answer, and the way to prove it on real coding
+work is to replace the gold-test oracle with runtime verification signals and
+re-validate with a held-out, train/test-split methodology.
 
 ## Companion benchmark
 

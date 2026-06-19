@@ -43,7 +43,7 @@ harness/
   agent_eval.py      Agent loop inside the SWE-bench Docker image; git diff -> patch.
   fusion_select.py   Plan A: judge selects the best candidate patch (Select-on-N).
   fusion_synth.py    Plan B: synthesize one diff over candidates, apply-gated.
-  fusion_select_exec.py  General-purpose Plan A: select by execution signals
+  fusion_select_exec.py  General-purpose Plan 1: select by execution signals
                          (applies, compiles, suite imports, self-tests), judge
                          only on ties. No gold tests required.
   fusion_route.py    Cost-aware routing on top of fusion_select_exec: consult
@@ -159,9 +159,9 @@ coding selector, the plan is to replace the gold-test oracle with runtime
 verification signals (build, regression vs existing tests, self-authored tests,
 type/lint) and validate with a held-out, train/test-split methodology. In real
 use grading is not run every task; qualitative human review stands in, and
-SWE-bench is kept only as a method-validation harness. Plan C (cost routing) is
-built on Plan A (execution-grounded selection), so Plan A is measured first, then
-Plan A + C, to confirm cost drops while coverage holds. Plan A and Plan C are now
+SWE-bench is kept only as a method-validation harness. Plan 3 (cost routing) is
+built on Plan 1 (execution-grounded selection), so Plan 1 is measured first, then
+Plan 1 + 3, to confirm cost drops while coverage holds. Plan 1 and Plan 3 are now
 implemented as `harness/fusion_select_exec.py` and `harness/fusion_route.py`
 (see the run steps above). See section 6 of
 [reports/fusion-ensemble-report.md](reports/fusion-ensemble-report.md) for the
