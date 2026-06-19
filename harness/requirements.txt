@@ -1,0 +1,6 @@
+# The harness modules are standard-library Python. These packages are only
+# needed for the surrounding workflow:
+#   swebench  - scoring predictions with the official Docker harness (wsl_score.sh)
+#   datasets  - loading SWE-bench Verified in verified_prep.py
+swebench>=4.0
+datasets>=2.18

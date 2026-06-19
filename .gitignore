@@ -1,0 +1,20 @@
+# Run artifacts (regenerate with the harness)
+preds_*.jsonl
+predictions*.jsonl
+report_*.json
+results_*.json
+verified_subset*.jsonl
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
