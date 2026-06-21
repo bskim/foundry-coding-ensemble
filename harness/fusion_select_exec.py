@@ -1,4 +1,4 @@
-"""Plan A (execution-grounded): best-of-N candidate SELECTION without gold tests.
+"""Execution-grounded selection: best-of-N candidate selection without gold tests.
 
 fusion_select.py picks among candidate diffs with an LLM judge alone. This module
 replaces that guess with verifiable signals the agent actually has at runtime, so

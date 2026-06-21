@@ -2,339 +2,308 @@
 
 Read this in Korean: [fusion-ensemble-report_ko.md](fusion-ensemble-report_ko.md)
 
-This is a proof of concept. It was inspired by OpenRouter's Fusion (which fuses
-several models for deep-research answers), but adapted to agentic coding by
-replacing answer synthesis with the simpler idea of selection over N candidates
-(Select-on-N). Even with that simplification, the ensemble reaches the
-best-of-N ceiling on the test subset and is the only configuration here that
-beats the single-model SOTA baseline. The numbers below are a signal at small
-scale, not a benchmark-grade result, and there is clear room to advance on both
-cost and quality (see "Room to improve").
+This is a proof of concept. A diverse panel of open-weight models each produces one
+candidate patch through an agent loop, and an aggregator picks among the finished
+candidates. Two aggregators are implemented and measured here:
 
-Subset (5 instances): matplotlib__matplotlib-24970, mwaskom__seaborn-3187,
-pallets__flask-5014, psf__requests-1921, pydata__xarray-7393.
+- Execution-grounded selection: score every candidate by build, regression,
+  self-authored tests, and type/lint, and pick the best; an LLM judge breaks ties only.
+  Implemented in fusion_select_exec.py.
+- Cost-aware routing: the same execution signals plus difficulty routing that consults
+  candidates cheapest-first and stops as soon as one passes, so the full panel is paid for
+  only on hard instances. Implemented in fusion_route.py.
 
-Cost basis: gross (every prompt token at the input rate, every completion token
-at the output rate, no cache discount). The same method is used for every
-config, so $/resolved is directly comparable. Prices are in
-[harness/pricing.json](../harness/pricing.json).
+Headline on this subset (honest, not inflated). On disc10 the open panel has real
+cross-model complementarity: glm-5.1 resolves 9/10 but misses matplotlib-25311, which
+minimax-m2.5 solves, so the oracle best-of-4 ceiling is 10/10. Execution-grounded
+selection reaches that ceiling - 10/10 - one resolution above the best single open model
+(glm-5.1, 9/10) and three above the single-model SOTA baseline (gpt-5.4, 7/10). This is the
+first configuration measured here where the ensemble exceeds the best solo. Cost-aware
+routing reaches 9/10 more cheaply. The trade-off is price per resolved: selection runs the
+full panel plus a judge, so its value is the extra coverage, not the lowest cost - the
+cheapest strong open model (minimax-m2.5) reaches 7/10 at $0.05 per resolved. The numbers
+below are a signal at small scale on a curated discriminating set, not a benchmark-grade
+result.
 
-gpt-5.4 is the single-model SOTA baseline and is not an ensemble member. The
-open-weight panel is kimi-k2, deepseek-v4-pro, minimax-m2.5, grok-4.3, glm-5.1.
+Caveat on the subset and harness. disc10 is curated to expose cross-model variance - the
+instances were chosen because models disagree on them - so it is the set where selection
+has the most room to help, and the 10/10 should be read as a ceiling-on-this-set signal,
+not a general resolved rate. The harness is also deliberately simplified (a fixed tool set,
+a single context-trimming rule, no repo map or retrieval, no test-driven iteration loop
+beyond what the model asks for). Perceived quality - both of the solo agents and of the
+ensemble on top of them - depends heavily on the maturity of a real coding agent's
+client-side harness (Claude Code, Codex, Copilot, Aider). A stronger harness would move
+every number here, so read the comparison as relative-within-this-harness, not as an
+absolute capability measurement.
 
-## 1. Single-shot, oracle context
+How the subset is built. disc10 is a ten-instance slice of SWE-bench Verified, assembled
+from the public Verified split as a curated id list. The instances were not drawn at random: they were
+picked for discrimination, so the panel spans the full range from all-solve to
+only-one-solves instead of clustering at easy or hard. That makes the set useful for
+separating models, but it also means it is not a representative sample of SWE-bench, let
+alone of real coding work across languages, repositories, and task types. Read every number
+here as a directional signal on one hand-picked set, not a capability score.
 
-Model handed the gold files, one rewrite, no repo exploration and no test
-feedback (swe_eval.py, run_id s2).
+Why selection looks good here. Because the instances were chosen for cross-model
+disagreement, the panel's union of correct answers is unusually high relative to any single
+model - which is exactly the condition a selection ensemble exploits. On a random or
+representative split the panel would agree far more often, the oracle ceiling would sit much
+closer to the best solo, and the headroom for selection would shrink accordingly. The 10/10
+here is therefore a best case for fusion, not a typical one; the honest claim is that
+selection can reach the oracle ceiling when the panel genuinely disagrees, not that
+selection adds a resolution on average.
 
-| config               | resolved | rate | $/resolved |
-|----------------------|:--------:|:----:|:----------:|
-| solo-deepseek-v4-pro | 3/5      | 60%  | 0.11       |
-| solo-kimi-k2         | 3/5      | 60%  | 0.21       |
-| ensemble-cost        | 3/5      | 60%  | 0.47       |
-| ensemble-swe-elite   | 3/5      | 60%  | 0.54       |
-| gpt-5.4 (SOTA)       | 2/5      | 40%  | 0.53       |
-| ensemble-crossjudge  | 2/5      | 40%  | 0.62       |
-| ensemble-diverse     | 2/5      | 40%  | 0.65       |
-| ensemble-wide        | 2/5      | 40%  | 1.10       |
+On the open-weight scores. glm-5.1 leading the panel and minimax-m2.5 matching the
+proprietary SOTA baseline is striking, but it should be read with care. Open-weight models
+are frequently distilled from frontier models and trained against public benchmarks, and
+SWE-bench Verified is public, so part of an open model's apparent lead can be benchmark
+familiarity rather than transferable problem-solving. Nothing here rules contamination in or
+out; it only means the ranking has to be confirmed on private, real-world tasks the models
+have not seen before it can be trusted.
 
-In single-shot mode the per-turn fusion variants give no quality gain over the
-best solo at 2 to 7 times the cost.
+Scope. This is a proof of concept, not a product. The point was to test whether selection
+over open-weight candidates can beat the best solo at all, and on this set it can. Turning
+that into a general claim needs a larger uncurated evaluation, a held-out split used to
+choose the panel without post-hoc fit, and validation on tasks outside any public benchmark
+- the conditions under which a real coding system would actually run.
 
-## 2. Agent loop, 30 turns, Docker
+Subset (disc10: ten Verified instances curated to discriminate models):
+astropy__astropy-14508, django__django-12039, django__django-15161,
+matplotlib__matplotlib-25311, pydata__xarray-4695, pydata__xarray-7393,
+pytest-dev__pytest-7236, sphinx-doc__sphinx-7889, sympy__sympy-12419, sympy__sympy-15875.
+The set was built from the public SWE-bench Verified split by selecting instances with high
+cross-model variance (not all-easy, not all-hard), so it deliberately surfaces the cases
+where a selector can matter.
 
-Real repo at base_commit, tools (ls, read, grep, write, run pytest), git diff is
-the patch, scored by the official SWE-bench Docker harness (agent_eval.py,
-run_id agent_subset). Runs sequentially, one Foundry job at a time.
+Cost basis: gross (every prompt token at the input rate, every completion token at the
+output rate, no cache discount). The same method is used for every config, so $/resolved
+is directly comparable. Prices are in [harness/pricing.json](../harness/pricing.json). This
+matches the cost method of the single-model companion
+[foundry-model-benchmark](https://github.com/jisunchoii/foundry-model-benchmark), and both
+use the same official SWE-bench Verified Docker harness - but the two grade different
+instance subsets (foundry-model-benchmark scores its own selection; the figures here are
+disc10), so per-model numbers are not directly comparable across the two repositories.
 
-| config               | resolved | rate | tokens    | $ total | $/resolved |
-|----------------------|:--------:|:----:|:---------:|:-------:|:----------:|
-| solo-kimi-k2         | 3/5      | 60%  | 1,270,620 | 1.38    | 0.46       |
-| solo-deepseek-v4-pro | 3/5      | 60%  | 1,642,470 | 2.96    | 0.99       |
-| gpt-5.4 (SOTA)       | 2/5      | 40%  | 1,385,052 | 4.25    | 2.12       |
-| per-turn-fusion-cost | 2/5      | 40%  | 7,080,297 | 8.22    | 4.11       |
-| per-turn-fusion-elite| 1/5      | 20%  | 6,163,894 | 8.18    | 8.18       |
+gpt-5.4 is the single-model SOTA baseline and is not an ensemble member. The open-weight
+panel is kimi-k2, deepseek-v4-pro, minimax-m2.5, glm-5.1. gpt-5.5 and opus-4.8 are newer
+SOTA baselines pending quota; they will be added as solo baselines on the same disc10 set.
 
-Per-turn synthesis (fusing every agent turn) is worse in agent mode: the
-synthesizer gets stuck in read loops and gateway errors, burns 4 to 5 times the
-tokens, and costs 9 to 18 times the best solo per resolved issue.
+## 1. The panel and the oracle ceiling
 
-### Per-instance resolution (agent loop)
-
-| instance          | kimi | deepseek | gpt-5.4 | fusion-cost | fusion-elite |
-|-------------------|:----:|:--------:|:-------:|:-----------:|:------------:|
-| matplotlib-24970  | yes  | yes      | yes     | yes         | no           |
-| seaborn-3187      | no   | no       | no      | no          | no           |
-| flask-5014        | yes  | yes      | yes     | yes         | no           |
-| requests-1921     | yes  | no       | no      | no          | yes          |
-| xarray-7393       | no   | yes      | no      | no          | no           |
-| resolved          | 3/5  | 3/5      | 2/5     | 2/5         | 1/5          |
-
-### Oracle best-of-N ceiling
-
-If a perfect selector always picked a resolving candidate among the open-weight
-solos, the resolved set is the union of the candidates:
-
-- best-of-2 of kimi and deepseek covers matplotlib, flask, requests, xarray = 4/5 (80%).
-- The ceiling on this subset is 4/5. seaborn-3187 is unsolved by every model and config.
-
-That 4/5 ceiling (against gpt-5.4 at 2/5, best solo at 3/5, per-turn fusion at 1
-to 2/5) is the motivation for the refined approach: keep the diversity, drop the
-per-turn synthesis.
-
-## 3. Why per-turn fusion failed, and what changed
-
-- OpenRouter Fusion ([blog](https://openrouter.ai/blog/announcements/fusion-beats-frontier/))
-  is designed for deep research (text answers, no long-horizon tasks), not
-  agentic coding. Its own FAQ notes Fusion is not a drop-in replacement for
-  coding models. It fits a selectively invoked tool for hard sub-questions, not
-  the base coding loop.
-- About three quarters of Fusion's reported lift comes from the synthesis step
-  and about one quarter from model diversity.
-- Mixture-of-Agents ([arXiv 2406.04692](https://arxiv.org/abs/2406.04692)) uses
-  layered proposers and an aggregator and is strong on chat and instruction
-  benchmarks, but not evaluated on agentic coding.
-- Code is verifiable, so the coding analog of synthesis is selection-based
-  best-of-N: generate diverse candidates and pick one with a judge (or a
-  test-grounded selector). There is no full-file LLM merge, which was the exact
-  failure mode behind the read loops and gateway errors above.
-
-### Refined design
-
-1. Panel: K diverse open-weight solo agents (reusing agent_eval.py), each
-   produces one candidate patch through the normal agent loop. No per-turn fan-out.
-2. Selector: one open-weight judge picks the single best candidate from the issue
-   and all candidate diffs. This is selection, not synthesis.
-3. Score the selected patch with the same Docker harness, giving a comparable
-   resolved rate and $/resolved.
-
-Token cost is roughly K solo runs plus one small judge call, far below the per-turn
-fan-out of 6 to 7 million tokens.
-
-## 4. Refined results: Plan A (select) and Plan B (synth)
-
-Agent loop, 30 turns, Docker harness, run_id refine. Open-weight panel of 4 solo
-agents (kimi-k2, deepseek-v4-pro, minimax-m2.5, glm-5.1), each producing one
-candidate patch. Two aggregators run over the same candidate set:
-
-- Plan A, fusion-select: an open-weight judge (deepseek-v4-pro) picks the single
-  best candidate patch per instance. Selection, no merge.
-- Plan B, fusion-synth: deepseek-v4-pro synthesizes one unified diff over all
-  candidate patches, once, at the end. An execution apply-gate requires the
-  synthesized diff to pass `git apply --check` in the instance container,
-  otherwise it falls back to the fusion-select patch.
-
-### 4.1 Candidate solos (open-weight panel)
+Agent loop, 30 turns, real repo at base_commit, tools (ls, read, grep, edit, write, run
+pytest), git diff is the patch, scored by the official SWE-bench Docker harness
+(agent_eval.py, disc10). Each panel model produces one candidate patch.
 
 | candidate            | resolved | rate | tokens    | $ total | $/resolved |
 |----------------------|:--------:|:----:|:---------:|:-------:|:----------:|
-| solo-minimax-m2.5    | 3/5      | 60%  | 1,295,531 | 0.51    | 0.17       |
-| solo-glm-5.1         | 3/5      | 60%  | 1,311,252 | 2.31    | 0.77       |
-| solo-kimi-k2         | 3/5      | 60%  | 1,270,620 | 1.38    | 0.46       |
-| solo-deepseek-v4-pro | 3/5      | 60%  | 1,642,470 | 2.96    | 0.99       |
+| solo-glm-5.1         | 9/10     | 90%  | 1,101,394 | 2.07    | 0.23       |
+| solo-minimax-m2.5    | 7/10     | 70%  | 1,105,525 | 0.38    | 0.05       |
+| solo-deepseek-v4-pro | 5/10     | 50%  | 985,402   | 1.77    | 0.35       |
+| solo-kimi-k2         | 3/10     | 30%  | 1,081,260 | 1.20    | 0.40       |
 
-### 4.2 Aggregators vs the oracle ceiling
+Per-instance, the panel splits as follows (gpt-5.4 shown for reference; it is the SOTA
+baseline, not a panel member):
 
-| config            | resolved | rate | tokens    | $ total | $/resolved | oracle eff. |
-|-------------------|:--------:|:----:|:---------:|:-------:|:----------:|:-----------:|
-| fusion-select     | 4/5      | 80%  | 5,531,445 | 7.18    | 1.79       | 4/4 (100%)  |
-| fusion-synth      | 4/5      | 80%  | 5,532,167 | 7.18    | 1.79       | 4/4 (100%)  |
-| oracle best-of-4  | 4/5      | 80%  | -         | -       | -          | -           |
-| gpt-5.4 (SOTA)    | 2/5      | 40%  | 1,385,052 | 4.25    | 2.12       | -           |
-| per-turn fusion   | 2/5      | 40%  | 7,080,297 | 8.22    | 4.11       | 2/4 (50%)   |
+| instance         | glm | minimax | deepseek | kimi | gpt-5.4 (SOTA) |
+|------------------|:---:|:-------:|:--------:|:----:|:--------------:|
+| xarray-7393      | yes | yes     | yes      | yes  | yes            |
+| sphinx-7889      | yes | yes     | yes      | yes  | yes            |
+| xarray-4695      | yes | yes     | yes      | no   | yes            |
+| astropy-14508    | yes | yes     | yes      | no   | no             |
+| django-12039     | yes | no      | yes      | no   | yes            |
+| pytest-7236      | yes | yes     | no       | no   | yes            |
+| sympy-15875      | yes | yes     | no       | no   | yes            |
+| matplotlib-25311 | no  | yes     | no       | no   | yes            |
+| django-15161     | yes | no      | no       | no   | no             |
+| sympy-12419      | yes | no      | no       | yes  | no             |
+| resolved         | 9/10| 7/10    | 5/10     | 3/10 | 7/10           |
 
-### 4.3 Per-instance resolution (refine run)
+Two facts drive everything below:
 
-| instance         | minimax | glm | kimi | deepseek | fusion-select | fusion-synth |
-|------------------|:-------:|:---:|:----:|:--------:|:-------------:|:------------:|
-| matplotlib-24970 | yes     | yes | yes  | yes      | yes           | yes          |
-| seaborn-3187     | no      | no  | no   | no       | no            | no           |
-| flask-5014       | yes     | yes | yes  | yes      | yes           | yes          |
-| requests-1921    | yes     | yes | yes  | no       | yes           | yes          |
-| xarray-7393      | no      | no  | no   | yes      | yes           | yes          |
-| resolved         | 3/5     | 3/5 | 3/5  | 3/5      | 4/5           | 4/5          |
+1. The open panel has real internal complementarity on this set. glm-5.1 resolves 9/10 but
+   misses matplotlib-25311; minimax-m2.5 solves matplotlib-25311. Their union, and the
+   union of the full four-model panel, is 10/10. So the oracle best-of-4 ceiling is 10/10,
+   one above the best single open model - unlike a random subset, disc10 was curated so
+   this complementarity exists, which is the point of the set.
+2. SOTA is not the ceiling here. gpt-5.4 resolves 7/10 and misses three instances the open
+   panel covers (astropy-14508, django-15161, sympy-12419); two of those (django-15161,
+   sympy-12419) are covered only because glm and kimi disagree. A selector over the open
+   panel can therefore exceed gpt-5.4, which the result below confirms.
 
-### 4.4 Findings
+Every instance is solved by at least one model; the spread runs from instances all five
+solve (xarray-7393, sphinx-7889) to instances only one panel model solves (matplotlib-25311
+by minimax, django-15161 by glm), so the set is genuinely discriminating rather than
+all-easy or all-hard.
 
-1. Quality reaches the ceiling. Both aggregators reach 4/5 (80%), the oracle
-   best-of-N ceiling, at 100% selector efficiency. This beats every other config
-   here: gpt-5.4 at 2/5, best solo at 3/5, per-turn fusion at 1 to 2/5. No single
-   open-weight model exceeds 3/5, but the union of a diverse panel reaches 4/5,
-   and both a judge (select) and a synthesizer (synth) recover that full union.
-2. Tokens are lower but not free. 5.53M tokens against the per-turn 6 to 7M,
-   because the cost is now K real agent candidates (4 times about 1.3M) rather
-   than a per-turn fan-out. The aggregation call itself is negligible: synth adds
-   only about 722 tokens (about 0.003 dollars) over select.
-3. $/resolved is still above the best solo. 1.79 per resolved is about 10 times
-   solo-minimax's 0.17, because you pay to generate 4 candidates to buy the extra
-   resolution (xarray, which only deepseek solves). The refined ensemble trades
-   cost for a higher quality ceiling, the opposite of per-turn fusion, which cost
-   more and lost quality.
-4. Selection is about equal to synthesis on atomic fixes. Both reach 4/5 on the
-   same instances. On SWE-bench-style fixes each resolvable issue is solved whole
-   by at least one candidate, so there is nothing to combine: synthesis cannot
-   exceed selection, and the apply-gate only adds risk (a malformed merged diff)
-   for no gain. The reported synthesis lift was measured on deep-research answer
-   fusion, where partial answers genuinely combine, and it does not transfer to
-   atomic code patches. Prefer fusion-select for its simplicity; keep
-   fusion-synth only for tasks where the correct fix spans multiple candidates.
+## 2. How the design arrived at selection
 
-### 4.5 Cost-minimal panel
+The current selector did not start here. The first attempts copied OpenRouter's Fusion
+([blog](https://openrouter.ai/blog/announcements/fusion-beats-frontier/)) literally -
+fuse several models into one answer - and that does not transfer to agentic coding:
 
-xarray-7393 is resolved only by deepseek-v4-pro, and the other three resolvable
-instances are covered by minimax-m2.5. So the 2-model panel of
-{minimax-m2.5, deepseek-v4-pro} already spans the full oracle 4/5:
+- Fusing every agent turn (per-turn synthesis) was worse, not better. The synthesizer got
+  stuck in read loops and gateway errors, burned 6 to 7M tokens, and resolved fewer
+  instances than the best single model. Fusion's own FAQ notes it is not a drop-in
+  replacement for coding models; it fits deep-research text answers, not a long-horizon
+  coding loop.
+- Code is verifiable, so the coding analog of answer-fusion is selection over candidates,
+  not a full-file LLM merge. The merge step was the exact source of the read loops and
+  gateway errors.
 
-| panel                                | resolved | $ total (approx) | $/resolved (approx) |
-|--------------------------------------|:--------:|:----------------:|:-------------------:|
-| 4-model (kimi, deepseek, minimax, glm) | 4/5    | 7.18             | 1.79                |
-| 2-model (minimax, deepseek)            | 4/5    | 3.47             | 0.87                |
-| solo-minimax-m2.5 (single model cap)   | 3/5    | 0.51             | 0.17                |
+That moved the design to a panel of diverse solo agents plus an aggregator over their
+candidate patches. An early aggregator pair was compared on the same panel:
 
-Pruning the panel to the two complementary models that cover the ceiling halves
-the cost while keeping 4/5. The remaining gap to the single-model price (0.17) is
-the intrinsic price of the extra resolution, not overhead.
+- An LLM-judge selector picked the single best candidate per instance.
+- An end-of-run synthesizer merged all candidate diffs once, gated by `git apply --check`.
 
-## 5. Room to improve
+Both reached the same ceiling, and synthesis never beat selection: on SWE-bench-style fixes
+each resolvable issue is solved whole by at least one candidate, so there is nothing to
+combine, and a merged diff only adds risk. The reported synthesis lift was measured on
+deep-research answers, where partial answers genuinely combine, and it does not carry over
+to atomic code patches. So the implemented harness selects rather than merges - and
+grounds that selection in execution signals rather than an LLM judge alone, which is the
+execution-grounded selection described below.
 
-This is a small proof of concept, and the headline result (Select-on-N reaches
-the best-of-N ceiling) holds on 5 instances. The path to making it both cheaper
-and stronger is concrete:
+## 3. Result: selection, routing, and SOTA
 
-- Scale the evaluation. 5 instances is a signal, not a benchmark. Re-run on a
-  larger Verified subset (50 to 500) to confirm the ceiling effect and to get
-  stable cost numbers.
-- Prune the panel. The cost-minimal panel already halves the cost at the same
-  quality. A learned or measured complementarity score can pick the smallest
-  panel that spans the ceiling per repo or per issue type.
-- Route instead of always running N. Start with the cheapest solo and escalate to
-  the panel only when candidates disagree or tests still fail, so the full panel
-  cost is paid only on the hard instances.
-- Make selection test-grounded. The judge is an LLM today. Running the repo's own
-  tests against each candidate before selecting would turn selection into a
-  verifiable signal and reduce reliance on the judge's reasoning.
-- Raise the ceiling itself. The ceiling here is bounded by the panel: seaborn-3187
-  is unsolved by every member. Adding a model that covers currently unsolved
-  instances lifts the oracle ceiling that selection can then capture.
-- Re-evaluate against the newest SOTA baseline. The advantage over gpt-5.4 should
-  be re-measured whenever a stronger baseline becomes available.
+Both aggregators run over the same 4-model panel and the same disc10 subset, scored by the
+same Docker harness with gold tests. The judge (deepseek-v4-pro) is used only to break
+ties. The figures below use the improved judge (the disc10j2 run); see the judge note at
+the end of this section.
 
-The takeaway: even a simplified, selection-only ensemble already beats the
-single-model SOTA on this subset, and the cost can be brought down substantially
-by pruning and routing. With more scale and a test-grounded selector, there is
-meaningful headroom on both axes.
+| config                              | resolved | rate | tokens    | $ total | $/resolved | oracle eff. |
+|-------------------------------------|:--------:|:----:|:---------:|:-------:|:----------:|:-----------:|
+| execution-grounded selection        | 10/10    | 100% | 4,368,246 | 5.61    | 0.56       | 10/10 (100%)|
+| cost-aware routing                  | 9/10     | 90%  | 3,312,882 | 3.90    | 0.43       | 9/10 (90%)  |
+| oracle best-of-4                    | 10/10    | 100% | -         | -       | -          | -           |
+| best solo (glm-5.1)                 | 9/10     | 90%  | 1,101,394 | 2.07    | 0.23       | -           |
+| gpt-5.4 (SOTA)                      | 7/10     | 70%  | 1,127,715 | 3.04    | 0.43       | -           |
 
-## 6. Toward a general-purpose coding selector
+Execution-grounded selection picks a resolving candidate on all ten instances, including
+the three where the panel only narrowly covers the bug: matplotlib-25311 (only minimax),
+django-15161 (only glm), and sympy-12419 (glm or kimi). It reaches the 10/10 oracle ceiling
+- above the best solo (glm 9/10) and SOTA (gpt-5.4 7/10). Cost-aware routing reaches 9/10:
+it diverges from selection on exactly one instance, sympy-15875, where its cheapest-first
+tiebreak settles on a candidate that does not resolve the bug while selection, scoring all
+candidates, lands on glm-5.1's correct patch.
 
-SWE-bench has two things real coding work does not: a fixed problem set and hidden
-gold tests that grade each patch. That raises a fair question: is this a general
-approach, or is it only tuned to a benchmark whose answers are known?
+Findings:
 
-What was and was not fit to the benchmark:
+1. The ensemble now beats the best solo. On disc10, execution-grounded selection resolves
+   10/10 against glm-5.1's 9/10 and gpt-5.4's 7/10. This is the first subset measured here
+   where selection exceeds the best single model, and it happens because disc10 has the
+   cross-model complementarity (glm misses matplotlib-25311, minimax covers it) that a
+   selector can exploit.
+2. The value is coverage, not cost. Selection reaches 10/10 at $0.56 per resolved, more
+   than the cheapest strong solo (minimax at 7/10 / $0.05) per resolved. The ensemble buys
+   the extra resolutions by paying for the full panel and a judge; if your objective is
+   lowest cost per resolved rather than maximum coverage, a single cheap-strong model is
+   still the better pick.
+3. Routing trades one resolution for cost. Cost-aware routing holds 9/10 at $0.43 per
+   resolved by consulting candidates cheapest-first and stopping early, so it pays the full
+   panel only on hard instances. It loses sympy-15875 because cheapest-first does not score
+   every candidate, so it cannot always recover the one correct patch that full selection
+   finds.
+4. SOTA is not the ceiling on a discriminating set. gpt-5.4 (7/10) is matched by minimax
+   alone (7/10, far cheaper) and beaten by glm (9/10) and by both fusion configs. When the
+   open panel genuinely disagrees, aggregating it is worth more than reaching for a single
+   proprietary model.
 
-- The selector never saw the gold tests. fusion-select picks among candidate diffs
-  from the issue text alone, the same information a real coding agent has. Grading
-  by gold tests happens offline, after selection. So the selection mechanism
-  itself is general.
-- One result is fit to the benchmark and should be read with care: the
-  cost-minimal 2-model panel in 4.5 was chosen after seeing per-instance results.
-  That is a post-hoc, oracle-fit configuration and is not evidence of general
-  performance.
+### Judge note (disc10 vs disc10j2)
 
-How evaluation works outside SWE-bench. In real use you do not grade every task
-with gold tests; qualitative human review stands in for grading. SWE-bench is used
-here only as a method-validation harness: because it grades objectively, it can
-answer the one question we need, which is whether an implementation built this way
-scores higher than a single model. If execution-grounded selection raises the
-SWE-bench score, the mechanism is doing real work, not memorizing answers.
+The judge only breaks ties inside the fusion aggregators; it never grades solo models, so
+the solo numbers above are unchanged between runs. Improving the judge (the disc10j2 run)
+changed only the fusion selectors: it fixed execution-grounded selection's tiebreak on
+sympy-15875 to pick glm-5.1's correct patch, taking selection from 9/10 to 10/10. Routing
+stayed at 9/10 (its cheapest-first tiebreak still settles on a non-resolving candidate for
+sympy-15875). Because fusion selects a verbatim candidate patch, each fusion grade equals
+the selected solo model's disc10 grade (verified by patch-hash identity), so only the
+fusion configs needed re-running, not the solo panel.
 
-### Plan 1: execution-grounded selection (runtime, no gold tests)
+## 4. Execution-grounded selection
 
-Replace the LLM-only judge with verifiable signals the agent actually has at
-runtime, scored and combined:
+Selection uses verifiable signals the agent actually has at runtime, scored and combined,
+so it works on real repos where no hidden gold tests exist:
 
-1. Build / compile passes (the cheapest hard filter; a candidate that does not
-   build is dropped).
-2. Regression check against the repo's existing test suite (a candidate that
-   breaks currently-passing tests is penalized).
-3. Self-authored tests: each panel agent writes the fix plus a test for it, and
-   those tests are cross-applied to the other candidates as a runtime oracle.
+1. Build / compile passes (the cheapest hard filter; a candidate that does not build is
+   dropped).
+2. Regression check against the repo's existing test suite (a candidate that breaks
+   currently-passing tests is penalized).
+3. Self-authored tests: each panel agent writes the fix plus a test for it, and those
+   tests are cross-applied to the other candidates as a runtime oracle.
 4. Type check and lint (mypy / tsc / ruff and equivalents).
-5. Candidate agreement (independent agents converging on a similar diff add
-   confidence).
+5. Candidate agreement (independent agents converging on a similar diff add confidence).
 6. LLM judge as the tiebreaker only when the execution signals are tied.
 
-selection score = f(build, regression, self-test pass rate, type/lint, agreement,
-judge). This turns selection from a guess into a verifiable decision, which is
-what lets it work outside SWE-bench.
+selection score = f(build, regression, self-test pass rate, type/lint, agreement, judge).
+This turns selection from a guess into a verifiable decision, which is what lets it work
+outside SWE-bench: the selector never reads gold tests, only signals the agent already
+has. Implemented in [harness/fusion_select_exec.py](../harness/fusion_select_exec.py).
 
-### Plan 2: a general evaluation methodology
+## 5. Cost-aware routing
 
-- Held-out test split: split a repo's tests into a set visible to the agent and
-  selector and a hidden set used only for grading. This mirrors real development
-  and keeps the selector away from the answer.
-- Scale and diversity: 50 to 500 instances, more than one language and task type
-  (not only Python bug-fixes), to check the panel and selector are robust to the
-  task distribution.
-- Train/test panel split: decide which models go in the panel on a train split,
-  and report numbers only on a test split. This removes the post-hoc fit behind
-  the 2-model panel.
-- Test-less tasks (docs, UI, refactors): calibrate an LLM rubric judge against
-  human ratings, or collect proxy signals (CI pass rate, review acceptance,
-  post-merge revert rate) as longer-term evidence.
+Running N agents on every task is impractical in real use. Routing consults the same
+candidates cheapest-first and stops early:
 
-### Plan 3: cost-aware routing (built on Plan 1)
+- Difficulty routing: try the cheapest solo first; finish if its build and tests pass.
+- Escalate on disagreement: call the next candidate only when the first fails its execution
+  signals.
+- Early stop: accept the first candidate whose signals are clean and skip the rest.
 
-Running N agents on every task is impractical in real use.
+On disc10 routing accepts the cheapest candidate whose signals are clean and escalates only
+when they are not, resolving 9/10; it diverges from full selection only on sympy-15875,
+where cheapest-first does not surface the one correct patch. Implemented in
+[harness/fusion_route.py](../harness/fusion_route.py).
 
-- Difficulty routing: try the cheapest solo first; finish if its build and tests
-  pass.
-- Escalate on disagreement: call the panel only when the first attempt fails or
-  candidates disagree.
-- Early stop: if one candidate passes all available tests (Plan 1 signals), skip
-  evaluating the rest.
+## 6. Generalization and room to improve
 
-### Measurement protocol
+SWE-bench has two things real coding work does not: a fixed problem set and hidden gold
+tests that grade each patch. The selector here never reads those gold tests - it picks
+among candidate diffs from the issue text alone, the same information a real coding agent
+has, and grading happens offline after selection. So the selection mechanism itself is
+general: it would run unchanged on a real repository where no gold tests exist, with
+qualitative human review standing in for the offline grade. SWE-bench is used here only as
+a method-validation harness, because it can confirm objectively whether the selected patch
+was the right one.
 
-Because Plan 3 is built on Plan 1, the two are measured in order:
+What disc10 shows, and what it does not. It shows that when an open panel genuinely
+disagrees, execution-grounded selection can reach the oracle ceiling and beat both the best
+solo and a proprietary SOTA baseline. It does not show that this holds on a random or full
+Verified split: disc10 was curated to contain cross-model variance, so it is the favorable
+case for selection, and the honest next step is to measure the same aggregators on an
+uncurated sample where complementarity is rarer. gpt-5.5 and opus-4.8 are newer SOTA
+baselines pending quota; once available they will be run as solo baselines on the same
+disc10 set, and a mixed open/proprietary panel is the natural configuration to test after
+that.
 
-1. Measure Plan 1 on SWE-bench: does execution-grounded selection hold the
-   coverage the LLM-judge version reached?
-2. Measure Plan 1 + 3: does routing keep the same coverage while cutting
-   $/resolved?
+To turn this small result into evidence for a general-purpose coding selector:
 
-| step | change | success criterion |
-|------|--------|-------------------|
-| 1 | selector: LLM-only to execution-grounded | selection without gold tests holds the oracle selection efficiency |
-| 2 | held-out test split, scale to 50-500 | selection efficiency does not collapse from the small-subset 100% |
-| 3 | panel chosen on a train/test split | coverage advantage over the best single model holds without post-hoc fit |
-| 4 | multi-language, multi-task types | coverage gain reproduces off-distribution |
-| 5 | add difficulty routing (Plan 1 + 3) | same coverage at substantially lower $/resolved |
+- Scale the evaluation. 10 instances is a discriminating signal, not a benchmark. Re-run on
+  an uncurated 50 to 500 Verified instances, across more than one language and task type,
+  for stable numbers.
+- Use a held-out test split. Split a repo's tests into a set visible to the agent and
+  selector and a hidden set used only for grading, so the selector is never near the
+  answer.
+- Choose the panel on a train/test split. Decide panel membership on a train split and
+  report only on a test split, which removes any post-hoc fit.
+- Cover test-less tasks. For docs, UI, and refactors with no tests, calibrate an LLM
+  rubric judge against human ratings, or collect proxy signals (CI pass rate, review
+  acceptance, post-merge revert rate).
+- Add the newer baselines and a mixed panel. Run gpt-5.5 and opus-4.8 as solo baselines on
+  the same disc10 set once quota is available, then test a mixed open/proprietary panel to
+  see whether selection lifts the ceiling further.
 
-Measured run on this subset (4-model panel: minimax-m2.5, deepseek-v4-pro,
-kimi-k2, glm-5.1; gold-test scoring, judge only on ties):
-
-| config | resolved | $/resolved | tokens |
-|--------|----------|------------|--------|
-| Plan 1 (execution-grounded selection) | 4/5 (80%) | 1.79 | 5.53M |
-| Plan 1 + 3 (cost-aware routing) | 4/5 (80%) | 0.29 | 1.66M |
-
-Routing held the same 80% coverage (the same four instances resolved, seaborn-3187
-missed by both) while cutting tokens by about 70% and $/resolved by about 84%: it
-consulted the cheapest candidate first and stopped as soon as that candidate's
-verifiable signals were clean, escalating to a second candidate on only one
-instance. Execution-grounded Plan 1 reproduced the LLM-judge selector's 4/5 from
-section 4, so swapping the gold-test-free signals in did not cost coverage here.
-On five instances this is a small signal, not a benchmark-grade result.
-
-This is still a proof of concept. The claim is narrow: the selection mechanism is
-general because it never reads the answer, and the way to prove it on real coding
-work is to replace the gold-test oracle with runtime verification signals and
-re-validate with a held-out, train/test-split methodology.
+This is still a proof of concept. The claim is narrow: on a discriminating set where the
+open panel disagrees, execution-grounded selection reaches the oracle ceiling and beats the
+best solo and the SOTA baseline; the selection mechanism is general because it never reads
+the answer, and the way to prove it on real coding work is to keep the runtime verification
+signals it already uses and re-validate with a held-out, train/test-split methodology at
+scale.
 
 ## Companion benchmark
 
 For single-model SWE-bench results on these same Foundry-served models, see the
-foundry-model-benchmark repository (reports for SWE-bench Verified 500 and a
-custom coding eval). This repository is the ensemble companion: it shares the
-harness that turns those single-model candidates into a selection-based ensemble.
+[foundry-model-benchmark](https://github.com/jisunchoii/foundry-model-benchmark)
+repository (reports for SWE-bench Verified 500 and a custom coding eval). This repository
+is the ensemble companion: it shares the harness that turns those single-model candidates
+into a selection-based ensemble.

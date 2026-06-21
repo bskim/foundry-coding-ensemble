@@ -1,4 +1,4 @@
-"""Plan C (built on Plan A): cost-aware routing over the candidate patches.
+"""Cost-aware routing over the candidate patches, built on execution-grounded selection.
 
 Running every panel model on every instance pays for N candidates even when the
 cheapest one already solves the task. This module simulates difficulty routing on

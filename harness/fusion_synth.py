@@ -1,4 +1,4 @@
-"""Plan B: execution-grounded SYNTHESIS over the agent candidate patches.
+"""Execution-grounded synthesis over the agent candidate patches (early aggregator).
 
 Synthesis is applied once, at the end, over the candidate patches produced by the
 diverse open-weight agents (fusion_select reuses the same candidates but only

@@ -1,4 +1,4 @@
-"""Plan A: best-of-N candidate SELECTION for agentic coding.
+"""Judge-only candidate selection: best-of-N for agentic coding (early aggregator).
 
 Each open-weight model runs the normal agent loop (agent_eval.py) and produces
 one candidate patch. A judge model reads the issue and every candidate diff and
