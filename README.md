@@ -19,7 +19,7 @@ the best single open model (glm-5.1, 9/10) and the single-model SOTA baseline
 (gpt-5.4, 7/10): the first configuration where the ensemble exceeds the best
 solo. See [reports/fusion-ensemble-report.md](reports/fusion-ensemble-report.md)
 for the full results, the per-instance solve matrix, and the honest caveats
-(curated discriminating set, small scale, judge variance).
+(curated discriminating set, small scale).
 
 Caveat: this is a deliberately simplified agent harness. Perceived quality - of
 the solo agents and the ensemble alike - depends heavily on the maturity of a

@@ -167,8 +167,7 @@ execution-grounded selection described below.
 
 Both aggregators run over the same 4-model panel and the same disc10 subset, scored by the
 same Docker harness with gold tests. The judge (deepseek-v4-pro) is used only to break
-ties. The figures below use the improved judge (the disc10j2 run); see the judge note at
-the end of this section.
+ties.
 
 | config                              | resolved | rate | tokens    | $ total | $/resolved | oracle eff. |
 |-------------------------------------|:--------:|:----:|:---------:|:-------:|:----------:|:-----------:|
@@ -207,17 +206,6 @@ Findings:
    alone (7/10, far cheaper) and beaten by glm (9/10) and by both fusion configs. When the
    open panel genuinely disagrees, aggregating it is worth more than reaching for a single
    proprietary model.
-
-### Judge note (disc10 vs disc10j2)
-
-The judge only breaks ties inside the fusion aggregators; it never grades solo models, so
-the solo numbers above are unchanged between runs. Improving the judge (the disc10j2 run)
-changed only the fusion selectors: it fixed execution-grounded selection's tiebreak on
-sympy-15875 to pick glm-5.1's correct patch, taking selection from 9/10 to 10/10. Routing
-stayed at 9/10 (its cheapest-first tiebreak still settles on a non-resolving candidate for
-sympy-15875). Because fusion selects a verbatim candidate patch, each fusion grade equals
-the selected solo model's disc10 grade (verified by patch-hash identity), so only the
-fusion configs needed re-running, not the solo panel.
 
 ## 4. Execution-grounded selection
 
