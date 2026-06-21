@@ -73,8 +73,7 @@ price. disc10 is a curated discriminating set (chosen to expose where models
 differ), so read 100% as a ceiling-on-this-set signal, not a benchmark-grade
 rate. Cost is gross (no cache discount); update
 [harness/pricing.json](harness/pricing.json) to your own rates before relying on
-the dollar figures. gpt-5.5 and opus-4.8 are newer SOTA baselines pending quota;
-they will be added as solo baselines on the same disc10 set.
+the dollar figures.
 
 ## Layout
 
@@ -214,9 +213,8 @@ tests, self-authored tests, type/lint), so no gold tests are required. disc10 is
 a curated discriminating set built for cross-model variance, so the result shows
 selection can reach the oracle ceiling when the panel disagrees - not that it does
 so on a random or full split. What
-remains is scaling the evaluation on an uncurated sample, and adding the newer
-SOTA baselines (gpt-5.5, opus-4.8, pending quota) as solo runs on the same disc10
-set, then testing a mixed open/proprietary panel. In real
+remains is scaling the evaluation on an uncurated sample, then testing a mixed
+open/proprietary panel. In real
 use grading is not run every task; qualitative human review stands in, and
 SWE-bench is kept only as a method-validation harness. See section 6 of
 [reports/fusion-ensemble-report.md](reports/fusion-ensemble-report.md) for

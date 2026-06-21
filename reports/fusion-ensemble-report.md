@@ -85,8 +85,7 @@ instance subsets (foundry-model-benchmark scores its own selection; the figures 
 disc10), so per-model numbers are not directly comparable across the two repositories.
 
 gpt-5.4 is the single-model SOTA baseline and is not an ensemble member. The open-weight
-panel is kimi-k2, deepseek-v4-pro, minimax-m2.5, glm-5.1. gpt-5.5 and opus-4.8 are newer
-SOTA baselines pending quota; they will be added as solo baselines on the same disc10 set.
+panel is kimi-k2, deepseek-v4-pro, minimax-m2.5, glm-5.1.
 
 ## 1. The panel and the oracle ceiling
 
@@ -271,10 +270,8 @@ disagrees, execution-grounded selection can reach the oracle ceiling and beat bo
 solo and a proprietary SOTA baseline. It does not show that this holds on a random or full
 Verified split: disc10 was curated to contain cross-model variance, so it is the favorable
 case for selection, and the honest next step is to measure the same aggregators on an
-uncurated sample where complementarity is rarer. gpt-5.5 and opus-4.8 are newer SOTA
-baselines pending quota; once available they will be run as solo baselines on the same
-disc10 set, and a mixed open/proprietary panel is the natural configuration to test after
-that.
+uncurated sample where complementarity is rarer. A mixed open/proprietary panel is the
+natural configuration to test next.
 
 To turn this small result into evidence for a general-purpose coding selector:
 
@@ -289,9 +286,8 @@ To turn this small result into evidence for a general-purpose coding selector:
 - Cover test-less tasks. For docs, UI, and refactors with no tests, calibrate an LLM
   rubric judge against human ratings, or collect proxy signals (CI pass rate, review
   acceptance, post-merge revert rate).
-- Add the newer baselines and a mixed panel. Run gpt-5.5 and opus-4.8 as solo baselines on
-  the same disc10 set once quota is available, then test a mixed open/proprietary panel to
-  see whether selection lifts the ceiling further.
+- Add a mixed panel. Test a mixed open/proprietary panel to see whether selection lifts the
+  ceiling further.
 
 This is still a proof of concept. The claim is narrow: on a discriminating set where the
 open panel disagrees, execution-grounded selection reaches the oracle ceiling and beats the
