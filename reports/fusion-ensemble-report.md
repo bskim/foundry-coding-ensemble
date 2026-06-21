@@ -17,8 +17,9 @@ Headline on this subset (honest, not inflated). On disc10 the open panel has rea
 cross-model complementarity: glm-5.1 resolves 9/10 but misses matplotlib-25311, which
 minimax-m2.5 solves, so the oracle best-of-4 ceiling is 10/10. Execution-grounded
 selection reaches that ceiling - 10/10 - one resolution above the best single open model
-(glm-5.1, 9/10) and three above the single-model SOTA baseline (gpt-5.4, 7/10). This is the
-first configuration measured here where the ensemble exceeds the best solo. Cost-aware
+(glm-5.1, 9/10) and three above the single-model SOTA baseline (gpt-5.4, 7/10). On this set,
+then, the approach shows it can widen coverage beyond the best solo - a possibility
+confirmed here, not a general performance gain. Cost-aware
 routing reaches 9/10 more cheaply. The trade-off is price per resolved: selection runs the
 full panel plus a judge, so its value is the extra coverage, not the lowest cost - the
 cheapest strong open model (minimax-m2.5) reaches 7/10 at $0.05 per resolved. The numbers
@@ -187,11 +188,12 @@ candidates, lands on glm-5.1's correct patch.
 
 Findings:
 
-1. The ensemble now beats the best solo. On disc10, execution-grounded selection resolves
-   10/10 against glm-5.1's 9/10 and gpt-5.4's 7/10. This is the first subset measured here
-   where selection exceeds the best single model, and it happens because disc10 has the
-   cross-model complementarity (glm misses matplotlib-25311, minimax covers it) that a
-   selector can exploit.
+1. On this set the ensemble covers more than the best solo. On disc10, execution-grounded
+   selection resolves 10/10 against glm-5.1's 9/10 and gpt-5.4's 7/10. This is the first
+   subset measured here where selection gets ahead of the best single model, and it happens
+   because disc10 has the cross-model complementarity (glm misses matplotlib-25311, minimax
+   covers it) that a selector can exploit - so read it as a possibility shown on a favorable
+   set, not a general gain.
 2. The value is coverage, not cost. Selection reaches 10/10 at $0.56 per resolved, more
    than the cheapest strong solo (minimax at 7/10 / $0.05) per resolved. The ensemble buys
    the extra resolutions by paying for the full panel and a judge; if your objective is

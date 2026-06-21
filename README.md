@@ -2,24 +2,30 @@
 
 Read this in Korean: [README_KO.md](README_KO.md)
 
-A small proof of concept that turns several Foundry-served open-weight coding
-models into a selection-based ensemble for SWE-bench, and measures whether that
-ensemble beats the best single model on resolved rate and cost.
+A small proof of concept that asks whether selecting among several Foundry-served
+open-weight coding models - instead of relying on any single one - can broaden the
+range of SWE-bench problems that get solved. It is an exploration of that
+possibility, not a verified performance gain: the aim was to check whether the
+approach can widen coverage at all, and on a limited curated set it confirmed part
+of that possibility.
 
-Inspired by OpenRouter's Fusion (which fuses several models into one
-deep-research answer), but adapted to agentic coding: instead of synthesizing a
+The mechanism is inspired by OpenRouter's Fusion (which fuses several models into
+one deep-research answer), but adapted to agentic coding: instead of synthesizing a
 merged answer every turn, each model runs the full agent loop on its own and the
 aggregator selects among the finished candidate patches. Two aggregators are
-measured: execution-grounded selection (score every candidate by build,
-regression, self-authored tests, and type/lint; an LLM judge breaks ties only)
-and cost-aware routing (consult candidates cheapest-first and accept the first
-clean one). On the disc10 set - ten SWE-bench Verified instances curated to
-expose cross-model variance - execution-grounded selection resolves 10/10, above
-the best single open model (glm-5.1, 9/10) and the single-model SOTA baseline
-(gpt-5.4, 7/10): the first configuration where the ensemble exceeds the best
-solo. See [reports/fusion-ensemble-report.md](reports/fusion-ensemble-report.md)
-for the full results, the per-instance solve matrix, and the honest caveats
-(curated discriminating set, small scale).
+measured: execution-grounded selection (score every candidate by build, regression,
+self-authored tests, and type/lint; an LLM judge breaks ties only) and cost-aware
+routing (consult candidates cheapest-first and accept the first clean one).
+
+On the disc10 set - ten SWE-bench Verified instances curated to expose cross-model
+variance - execution-grounded selection reaches the oracle best-of-4 ceiling
+(10/10), ahead of the best single open model (glm-5.1, 9/10) and the single-model
+SOTA baseline (gpt-5.4, 7/10). Read it as a possibility confirmed on a favorable
+set, not a general result: disc10 was chosen precisely because the panel disagrees,
+so it is where selection has the most room to help. See
+[reports/fusion-ensemble-report.md](reports/fusion-ensemble-report.md) for the full
+results, the per-instance solve matrix, and the honest caveats (curated
+discriminating set, small scale).
 
 Caveat: this is a deliberately simplified agent harness. Perceived quality - of
 the solo agents and the ensemble alike - depends heavily on the maturity of a
@@ -204,7 +210,7 @@ never reads those tests (it picks among candidate diffs from the issue text
 alone), so the mechanism is general. Execution-grounded selection
 (`harness/fusion_select_exec.py`) and cost-aware routing
 (`harness/fusion_route.py`) are measured on this subset: execution-grounded
-selection reaches the best-of-4 oracle ceiling (10/10), beating the best single
+selection reaches the best-of-4 oracle ceiling (10/10), ahead of the best single
 open model (glm-5.1, 9/10) and the proprietary SOTA baseline (gpt-5.4, 7/10),
 while cost-aware routing reaches 9/10 at lower cost (see the run steps above).
 They replace the
