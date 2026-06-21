@@ -115,6 +115,13 @@ environment:
 $env:LITELLM_KEY = "<your gateway key>"
 ```
 
+The model slugs used here (gpt-5.4, glm-5.1, minimax-m2.5, deepseek-v4-pro,
+kimi-k2) are gateway-specific names, not public model ids. The open-weight panel
+was an arbitrary choice and you can swap in whichever models you prefer when
+reproducing - to do so you need to deploy or otherwise secure an endpoint for each
+panel model and wire them into your LiteLLM (or other OpenAI-compatible gateway)
+config so the harness can reach each one by slug.
+
 1. Build the evaluation subset (needs the `datasets` package, run in the swebench venv):
 
    ```
