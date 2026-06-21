@@ -284,6 +284,17 @@ the answer, and the way to prove it on real coding work is to keep the runtime v
 signals it already uses and re-validate with a held-out, train/test-split methodology at
 scale.
 
+## Practical deployment
+
+On this limited set, execution-grounded fusion showed broader problem coverage than the
+SOTA model, but it also cost more (10/10 at $0.56 per resolved versus gpt-5.4's 7/10 at
+$0.43). In practice, rather than wiring it in as a single coding-agent backend that pays
+the full panel on every task, a more cost-and-coverage-balanced option is to expose it as
+an MCP tool that is only invoked when a problem is hard - a cheap single agent handles the
+easy majority, and the panel is escalated to only when the difficulty warrants it. That
+keeps the extra coverage available for the cases that actually need it without paying panel
+cost on every task.
+
 ## Companion benchmark
 
 For single-model SWE-bench results on these same Foundry-served models, see the
