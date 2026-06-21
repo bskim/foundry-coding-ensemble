@@ -297,6 +297,13 @@ easy majority, and the panel is escalated to only when the difficulty warrants i
 keeps the extra coverage available for the cases that actually need it without paying panel
 cost on every task.
 
+As a rough placement idea, the two strategies can sit at different layers: cost-aware
+routing is largely stateless and can run behind APIM as a gateway policy (existing clients
+just point at that endpoint), while execution-grounded selection is stateful - it advances
+step by step and needs a workspace to build and test - so it fits better wrapped as an MCP
+tool exposed to a coding-agent CLI (codex, Claude Code). That way a mature agent CLI harness
+and this ensemble pattern both stay usable, without nesting one agent loop inside another.
+
 ## Companion benchmark
 
 For single-model SWE-bench results on these same Foundry-served models, see the
